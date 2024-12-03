@@ -203,7 +203,6 @@ struct qcom_slim_ngd_ctrl {
 	struct completion qmi_up;
 	struct completion xfer_done;
 	struct completion sync_done;
-	struct completion tx_sent;
 	spinlock_t tx_buf_lock;
 	struct mutex tx_lock;
 	struct mutex suspend_resume_lock;
@@ -973,6 +972,7 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 				  struct slim_msg_txn *txn)
 {
 	struct qcom_slim_ngd_ctrl *ctrl = dev_get_drvdata(sctrl->dev);
+	DECLARE_COMPLETION_ONSTACK(tx_sent);
 	int ret, timeout, i;
 	u8 wbuf[SLIM_MSGQ_BUF_LEN];
 	u8 rbuf[SLIM_MSGQ_BUF_LEN];
@@ -982,7 +982,6 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 	bool usr_msg = false;
 
 	reinit_completion(&ctrl->xfer_done);
-	reinit_completion(&ctrl->tx_sent);
 
 	if (txn->mt == SLIM_MSG_MT_CORE &&
 		(txn->mc >= SLIM_MSG_MC_BEGIN_RECONFIGURATION &&
@@ -1010,8 +1009,7 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 	 * gracefully
 	 */
 	if (!mutex_trylock(&ctrl->tx_lock)) {
-		SLIM_ERR(ctrl, "%s: ngd going down due SSR/PDR. skipping check hw state\n",
-			 __func__);
+		SLIM_ERR(ctrl, "ngd going down due SSR/PDR, try again! skipping check hw state\n");
 		return -EAGAIN;
 	}
 	ret = check_hw_state(ctrl, txn);
@@ -1102,21 +1100,28 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 	}
 
 	if (!mutex_trylock(&ctrl->tx_lock)) {
-		SLIM_ERR(ctrl, "%s: ngd going down due SSR/PDR, skipping tx msg post\n",
-			 __func__);
-		txn->comp = NULL;
+		SLIM_ERR(ctrl, "ngd going down due SSR/PDR, try again! skipping tx msg post\n");
 		return -EAGAIN;
 	}
 	ret = qcom_slim_ngd_tx_msg_post(ctrl, pbuf, txn->rl);
 	if (ret) {
+//#ifdef OPLUS_ARCH_EXTENDS
+		if (usr_msg) {
+			pr_err("%s: qcom_slim_ngd_tx_msg_post failed, ret = %d \n", __func__, ret);
+			txn->comp = NULL;
+		}
+//#endif /* OPLUS_ARCH_EXTENDS */
 		mutex_unlock(&ctrl->tx_lock);
 		return ret;
 	}
 
 	timeout = wait_for_completion_timeout(&ctrl->tx_sent, 2*HZ);
 	if (!timeout) {
-		SLIM_ERR(ctrl, "%s: TX timed out:MC:0x%x,mt:0x%x", txn->mc,
-			 __func__, txn->mt);
+		SLIM_WARN(ctrl, "TX timed out:MC:0x%x,mt:0x%x", txn->mc,
+					txn->mt);
+//#ifdef OPLUS_ARCH_EXTENDS
+		pr_err("%s: TX timed out:MC:0x%x,mt:0x%x \n", __func__, txn->mc, txn->mt);
+//#endif /* OPLUS_ARCH_EXTENDS */
 		mutex_unlock(&ctrl->tx_lock);
 		ctrl->capability_timeout = true;
 		return -ETIMEDOUT;
@@ -1125,8 +1130,11 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 	if (usr_msg) {
 		timeout = wait_for_completion_timeout(&ctrl->xfer_done, HZ);
 		if (!timeout) {
-			SLIM_ERR(ctrl, "%s: TX usr_msg timed out:MC:0x%x,mt:0x%x",
-				 __func__, txn->mc, txn->mt);
+			SLIM_WARN(ctrl, "TX usr_msg timed out:MC:0x%x,mt:0x%x",
+				txn->mc, txn->mt);
+//#ifdef OPLUS_ARCH_EXTENDS
+			pr_err("%s: TX usr_msg timed out:MC:0x%x,mt:0x%x \n", __func__, txn->mc, txn->mt);
+//#endif /* OPLUS_ARCH_EXTENDS */
 			ctrl->capability_timeout = true;
 			txn->comp = NULL;
 			mutex_unlock(&ctrl->tx_lock);
@@ -2170,7 +2178,6 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 	init_completion(&ctrl->qmi_up);
 	init_completion(&ctrl->xfer_done);
 	init_completion(&ctrl->sync_done);
-	init_completion(&ctrl->tx_sent);
 
 	ctrl->pdr = pdr_handle_alloc(slim_pd_status, ctrl);
 	if (IS_ERR(ctrl->pdr)) {

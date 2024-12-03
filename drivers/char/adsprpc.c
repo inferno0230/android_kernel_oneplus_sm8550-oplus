@@ -2573,7 +2573,6 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 					pages[i].addr = mmap->phys;
 					pages[i].size = mmap->size;
 				}
-
 			} else {
 				/* map already freed by some other call */
 				mutex_unlock(&ctx->fl->map_mutex);
