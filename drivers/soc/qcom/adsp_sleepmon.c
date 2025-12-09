@@ -1577,6 +1577,9 @@ static long adspsleepmon_device_ioctl(struct file *file,
 			fl->num_lpi_sessions++;
 		case ADSPSLEEPMON_AUDIO_ACTIVITY_START:
 			fl->num_sessions++;
+			#ifdef OPLUS_ARCH_EXTENDS
+			retry_times = 0;
+			#endif
 		break;
 
 		case ADSPSLEEPMON_AUDIO_ACTIVITY_LPI_STOP:
@@ -1589,6 +1592,9 @@ static long adspsleepmon_device_ioctl(struct file *file,
 				fl->num_sessions--;
 			else
 				pr_info("Received AUDIO activity stop when none active!\n");
+			#ifdef OPLUS_ARCH_EXTENDS
+			retry_times = 0;
+			#endif
 		break;
 
 		case ADSPSLEEPMON_AUDIO_ACTIVITY_RESET:

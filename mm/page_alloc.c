@@ -2708,6 +2708,10 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 	else
 		clear_page_pfmemalloc(page);
 	trace_android_vh_test_clear_look_around_ref(page);
+#ifdef CONFIG_BLOCKIO_UX_OPT
+	if (fileprotect_enable())
+		__ClearPageProtect(page);
+#endif
 }
 
 /*

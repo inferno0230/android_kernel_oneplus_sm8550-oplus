@@ -133,6 +133,7 @@ oplus_omrg.ko
 oplus_freqqos_monitor.ko
 cpufreq_effiency.ko
 oplus_bsp_task_sched.ko
+oplus_bsp_qos_sched.ko
 cpufreq_uag.ko
 ua_cpu_ioctl.ko
 oplus_mdmfeature.ko

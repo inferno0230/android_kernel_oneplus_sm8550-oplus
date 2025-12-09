@@ -1422,6 +1422,9 @@ static unsigned int shrink_page_list(struct list_head *page_list,
 	unsigned int pgactivate = 0;
 	bool do_demote_pass;
 	bool page_trylock_result;
+#ifdef CONFIG_BLOCKIO_UX_OPT
+	bool avail_is_low = mem_available_is_low();
+#endif
 
 	memset(stat, 0, sizeof(*stat));
 	cond_resched();
@@ -1586,6 +1589,10 @@ retry:
 		if (!ignore_references)
 			references = page_check_references(page, sc);
 
+#ifdef CONFIG_BLOCKIO_UX_OPT
+		if (fileprotect_enable() && should_be_protect(page, avail_is_low))
+			references = PAGEREF_ACTIVATE;
+#endif
 		switch (references) {
 		case PAGEREF_ACTIVATE:
 			goto activate_locked;
@@ -2481,6 +2488,9 @@ static void shrink_active_list(unsigned long nr_to_scan,
 	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
 	bool bypass = false;
 	bool should_protect = false;
+#ifdef CONFIG_BLOCKIO_UX_OPT
+	bool avail_is_low = mem_available_is_low();
+#endif
 
 	lru_add_drain();
 
@@ -2535,6 +2545,13 @@ static void shrink_active_list(unsigned long nr_to_scan,
 		if (bypass)
 			goto skip_page_referenced;
 		trace_android_vh_page_trylock_set(page);
+#ifdef CONFIG_BLOCKIO_UX_OPT
+		if (fileprotect_enable() && should_be_protect(page, avail_is_low)) {
+			nr_rotated += thp_nr_pages(page);
+			list_add(&page->lru, &l_active);
+			continue;
+		}
+#endif
 		/* Referenced or rmap lock contention: rotate */
 		if (page_referenced(page, 0, sc->target_mem_cgroup,
 				     &vm_flags) != 0) {

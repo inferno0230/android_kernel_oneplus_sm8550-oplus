@@ -964,7 +964,10 @@ unlock:
 			mem_cgroup_uncharge(page);
 		goto error;
 	}
-
+#ifdef CONFIG_BLOCKIO_UX_OPT
+	if (fileprotect_enable() && mapping_protect(mapping))
+		set_fileprotect_page(page);
+#endif
 	trace_mm_filemap_add_to_page_cache(page);
 	return 0;
 error:

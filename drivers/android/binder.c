@@ -4062,6 +4062,7 @@ binder_free_buf(struct binder_proc *proc,
 	bool enqueue_task = true;
 	bool has_transaction = false;
 
+
 	trace_android_vh_binder_free_buf(proc, thread, buffer);
 	binder_inner_proc_lock(proc);
 	if (buffer->transaction) {
